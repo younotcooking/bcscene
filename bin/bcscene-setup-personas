@@ -3,9 +3,16 @@ set -euo pipefail
 
 # bcscene-setup-personas — Create a basecamp profile for each persona in personas.yaml.
 # Run once per machine. Idempotent: re-running is safe.
+#
+# The target Basecamp environment (production vs. a local-dev/staging account) is
+# resolved from personas.yaml by lib/config.py — the single source of truth shared
+# with the runtime. For a non-production target it bakes --base-url into each
+# profile and exports BASECAMP_LAUNCHPAD_URL / BASECAMP_OAUTH_CLIENT_ID /
+# BASECAMP_OAUTH_CLIENT_SECRET so the OAuth flow hits the right launchpad.
 
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 ROSTER="$REPO_ROOT/personas.yaml"
+CONFIG=(python3 "$REPO_ROOT/lib/config.py")
 
 if [ ! -f "$ROSTER" ]; then
   echo "✗ $ROSTER not found"
@@ -32,18 +39,61 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 1
 fi
 
-ACCOUNT_ID=$(yq -r '.account_id' "$ROSTER")
-if [ -z "$ACCOUNT_ID" ] || [ "$ACCOUNT_ID" = "null" ] || [ "$ACCOUNT_ID" = "YOUR_ACCOUNT_ID" ]; then
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "✗ python3 not found (required to resolve the target environment)."
+  exit 1
+fi
+
+# Resolve the target environment. config.py validates and exits non-zero with a
+# helpful message for an unknown target or incomplete non-production credentials.
+TARGET=$("${CONFIG[@]}" --target) || exit 1
+echo "Target environment: $TARGET"
+
+ACCOUNT_ID=$("${CONFIG[@]}" --account-id) || exit 1
+if [ -z "$ACCOUNT_ID" ] || [ "$ACCOUNT_ID" = "YOUR_ACCOUNT_ID" ]; then
   echo "✗ account_id not set in $ROSTER"
   exit 1
 fi
 
+# Non-production target → bake the API host into each profile via --base-url.
+BASE_URL=$("${CONFIG[@]}" --base-url) || exit 1
+BASE_URL_ARGS=()
+if [ -n "$BASE_URL" ]; then
+  BASE_URL_ARGS=(--base-url "$BASE_URL")
+  echo "Using base URL: $BASE_URL"
+fi
+
+# Non-production target → export launchpad/OAuth env for the auth flow.
+EXPORTS=$("${CONFIG[@]}" --env-exports) || exit 1
+if [ -n "$EXPORTS" ]; then
+  eval "$EXPORTS"
+  echo "Using launchpad: ${BASECAMP_LAUNCHPAD_URL:-<default>}"
+  [ -n "${BASECAMP_OAUTH_CLIENT_ID:-}" ] && echo "Using OAuth client: ${BASECAMP_OAUTH_CLIENT_ID:0:8}…"
+fi
+
 PERSONAS=$(yq -r '.personas[].name' "$ROSTER")
 
+# Snapshot existing profiles once (name + base_url) so we can detect profiles
+# left over from a different target and re-authorize them.
+EXISTING_PROFILES=$(basecamp profile list --json -q 2>/dev/null || echo '[]')
+WANT_URL="${BASE_URL:-production}"
+
 for name in $PERSONAS; do
-  if basecamp profile list --json -q 2>/dev/null | jq -e --arg n "$name" '.[] | select(.name == $n)' >/dev/null 2>&1; then
-    echo "✓ profile '$name' already exists — skipping"
-    continue
+  existing_url=$(echo "$EXISTING_PROFILES" | jq -r --arg n "$name" \
+    '.[] | select(.name==$n) | (.base_url // "production")' 2>/dev/null || true)
+
+  if [ -n "$existing_url" ]; then
+    if [ "$existing_url" = "$WANT_URL" ]; then
+      echo "✓ profile '$name' already exists ($TARGET) — skipping"
+      continue
+    fi
+    echo "⚠ profile '$name' is set up for '$existing_url' but this roster targets '$WANT_URL'."
+    echo "  It needs re-authorization. Press Return to delete and re-create it"
+    echo "  (Ctrl+C to skip and leave it as-is)."
+    read -r
+    # -P selects the profile; `profile delete <name>` alone errors with
+    # "multiple profiles configured but none selected" once >1 profile exists.
+    basecamp -P "$name" profile delete "$name" --json >/dev/null 2>&1 || true
   fi
 
   echo "→ Creating profile '$name'..."
@@ -51,7 +101,7 @@ for name in $PERSONAS; do
   echo "  Press Return to continue (or Ctrl+C to pause — re-run anytime to resume)."
   read -r
 
-  basecamp profile create "$name" --account "$ACCOUNT_ID" --scope full
+  basecamp profile create "$name" --account "$ACCOUNT_ID" --scope full "${BASE_URL_ARGS[@]}"
   echo "✓ profile '$name' created"
 done
 

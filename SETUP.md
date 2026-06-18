@@ -59,6 +59,87 @@ Open `personas.yaml` in your editor. Replace:
 You can start with just 2-3 personas to validate the setup before
 authorizing your full roster.
 
+## Targeting a local or staging Basecamp (optional)
+
+By default bcscene talks to production Basecamp (`3.basecampapi.com` for the
+API, `launchpad.37signals.com` for OAuth). To point it at a local dev or
+staging account instead, declare a `target` and an `environments` block in
+`personas.yaml`:
+
+    account_id: "181900405"        # the account ID in that environment
+    target: local                  # which environment below to use
+
+    environments:
+      local:
+        base_url: "http://3.basecampapi.localhost:4001"   # API host (port 4001)
+        launchpad_url: "http://launchpad.localhost:3011"  # OAuth host
+        # 37signals launchpad ships these as the "bcq" fixture client:
+        oauth_client_id: "bcq_dev_client_id_37signals_local"
+        oauth_client_secret: "bcq_dev_client_secret_37signals_local"
+
+    personas:
+      - name: jason
+        # ...
+
+Omitting `target` (or setting `target: production`) keeps the production
+defaults — nothing else changes.
+
+> **App host vs. API host.** Local dev serves the app on
+> `3.basecamp.localhost:3001` but the API on `3.basecampapi.localhost:4001`
+> (the `API_PORT`, default 4001) — the same split as production's
+> `3.basecamp.com` vs `3.basecampapi.com`. `base_url` is the **API** host:
+> point it at `:3001` and every request 404s. The account ID (the digits in
+> your app URL) is identical on both.
+
+### Why the OAuth client matters
+
+The basecamp CLI ships with a built-in OAuth client that **only exists in
+production launchpad**. A non-production launchpad doesn't know it, so OAuth
+fails with `Client not found` — you need a client that exists in the target
+launchpad.
+
+**For 37signals local dev**, there's nothing to register: launchpad seeds a
+fixture OAuth app named **bcq** ("Basecamp CLI") whose redirect URI is already
+`http://127.0.0.1:8976/callback`. Use its credentials directly (the values
+shown above) — they ship in the `signal_id` gem's `signal_oauth_clients`
+fixtures.
+
+**For staging or a launchpad without that fixture**, register your own OAuth
+app instead:
+
+1. Open `<launchpad_url>/integrations/new` and sign in.
+2. Set its **redirect URI** to exactly `http://127.0.0.1:8976/callback` — the
+   fixed port the CLI listens on during the flow.
+3. Copy the resulting **client ID** and **client secret** into
+   `environments.<name>.oauth_client_id` / `oauth_client_secret`.
+
+`bin/bcscene-setup-personas` reads all of this (via `lib/config.py`), bakes
+`base_url` into each profile, and exports `BASECAMP_LAUNCHPAD_URL`,
+`BASECAMP_OAUTH_CLIENT_ID`, and `BASECAMP_OAUTH_CLIENT_SECRET` for the OAuth
+flow. The same values are re-applied automatically at runtime so token refresh
+keeps working.
+
+### Switching an existing profile's target
+
+If a profile was already authorized against a different target, re-run
+`bin/bcscene-setup-personas`. It detects the mismatch (the profile's stored
+`base_url` no longer matches the selected environment) and offers to delete and
+re-authorize it. Authorizing against a different launchpad always requires a
+fresh OAuth login — tokens are not portable across environments.
+
+### Running basecamp commands by hand against a non-production target
+
+bcscene injects the launchpad/OAuth env automatically when it runs a scene, so
+scenes just work. But an *ad-hoc* `basecamp -P <persona> …` you type yourself
+won't have those vars, so token refresh checks against **production** launchpad
+and you'll see a misleading `invalid or expired token`. Export them for your
+shell first:
+
+    eval "$(python3 lib/config.py --env-exports)"
+
+(The profile's `base_url` is baked in at creation, so you don't need to set
+that — only the launchpad/OAuth vars.)
+
 ## Create profiles
 
 ### 3. Log out of Basecamp in your browser

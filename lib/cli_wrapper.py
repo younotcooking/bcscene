@@ -1,11 +1,24 @@
 """Wrapper for invoking the basecamp CLI as different profiles."""
 
+import os
 import subprocess
 import json
+
+import config
 
 
 class BasecampError(Exception):
     pass
+
+
+# Env-var overrides for a non-production target (local dev / staging), resolved
+# once from personas.yaml. These let the basecamp CLI refresh OAuth tokens
+# against the right launchpad at runtime. Empty for production / no roster, so
+# the subprocess simply inherits the ambient environment as before.
+try:
+    _ENV_OVERRIDES = config.env_overrides(config.load_personas())
+except Exception:
+    _ENV_OVERRIDES = {}
 
 
 def run(profile, args, dry_run=False):
@@ -23,7 +36,8 @@ def run(profile, args, dry_run=False):
         print("  [dry-run] " + " ".join(cmd))
         return {"dry_run": True}
 
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    env = {**os.environ, **_ENV_OVERRIDES} if _ENV_OVERRIDES else None
+    result = subprocess.run(cmd, capture_output=True, text=True, env=env)
 
     # Try to parse stdout as JSON regardless of exit code — the basecamp CLI
     # returns structured errors in the JSON envelope on failure.

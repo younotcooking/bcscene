@@ -12,6 +12,23 @@
 account_id: "YOUR_ACCOUNT_ID"          # Your Basecamp account ID (from the URL: https://3.basecamp.com/<account_id>/...)
 default_project_id: "YOUR_PROJECT_ID"  # A project ID you'll use for testing
 
+# Optional: target a non-production Basecamp (local dev / staging). Leave this
+# commented out to use production (the default). See "Targeting a local or
+# staging Basecamp" in SETUP.md.
+#
+# The oauth_* values below are 37signals' launchpad "bcq" fixture client (a
+# stock dev OAuth app for the Basecamp CLI) — use them as-is for local dev; no
+# app registration needed. For staging or a non-fixture launchpad, register your
+# own app (redirect URI http://127.0.0.1:8976/callback) and substitute its creds.
+#
+# target: local
+# environments:
+#   local:
+#     base_url: "http://3.basecampapi.localhost:4001"   # API host (port 4001, NOT the app host on 3001)
+#     launchpad_url: "http://launchpad.localhost:3011"  # local OAuth host
+#     oauth_client_id: "bcq_dev_client_id_37signals_local"
+#     oauth_client_secret: "bcq_dev_client_secret_37signals_local"
+
 personas:
   # Replace this example with your real personas.
   # Add as many as you want — each one needs its own OAuth flow during setup.

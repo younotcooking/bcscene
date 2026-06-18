@@ -20,6 +20,16 @@ Claude Code (which reads this folder per `CLAUDE.md`'s instructions).
 - [basecamp chat post `--room` flag](feedback_basecamp_chat_room_flag.md) —
   For projects with multiple chat rooms, specify with `--room <id>`
   (not `--campfire`, which is a command alias).
+- [Local/staging launchpad needs a registered OAuth client](feedback_local_launchpad_oauth.md) —
+  The CLI's built-in OAuth client is production-only; register your own app in
+  the local launchpad and set `BASECAMP_LAUNCHPAD_URL` + client id/secret
+  (37signals local dev ships the `bcq` fixture client for this).
+- [Local dev API host is a different host AND port than the app](feedback_local_dev_api_host.md) —
+  `base_url` must be `http://3.basecampapi.localhost:4001`, not the app host
+  on `:3001`; wrong host/port makes every API call 404.
+- [`people add` needs BC3 person IDs, not launchpad identity IDs](feedback_people_add_person_ids.md) —
+  Use IDs from `people list`, not from `me`; the wrong ID reports success but
+  grants no access.
 
 ## How to add a new gotcha
 
