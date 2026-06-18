@@ -136,6 +136,31 @@ want — none of it affects upstream. If upstream gets new features
 later and you want them, you can `git pull` from upstream into your
 fork.
 
+## Pointing at a local dev or staging Basecamp
+
+The account doesn't have to be on production Basecamp. To target a local
+dev (or staging) account, add a `target` + `environments` block to your
+`personas.yaml` in Phase 2 — everything else in this guide is the same.
+This is independent of forking.
+
+    account_id: "181900405"        # the account ID in that environment
+    target: local
+
+    environments:
+      local:
+        base_url: "http://3.basecampapi.localhost:4001"   # API host (port 4001, not the app's 3001)
+        launchpad_url: "http://launchpad.localhost:3011"
+        # 37signals local dev ships the "bcq" fixture OAuth client — use it as-is,
+        # no app registration needed:
+        oauth_client_id: "bcq_dev_client_id_37signals_local"
+        oauth_client_secret: "bcq_dev_client_secret_37signals_local"
+
+Then run Phase 3 (`bin/bcscene-setup-personas`) normally — it reads this,
+points the OAuth flow at your local launchpad, and bakes the API host into
+each profile. See **Targeting a local or staging Basecamp** in
+[SETUP.md](SETUP.md) for the full explanation (the app-vs-API host split,
+and what to do for a launchpad without the `bcq` fixture).
+
 ---
 
 # Phase 1: One-time setup

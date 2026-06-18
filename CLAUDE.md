@@ -20,6 +20,9 @@ basecamp CLI commands and run them.
 - `personas.yaml` — the user's roster of personas (gitignored, local
   to this machine). Read this to know which personas exist.
   `personas.example.yaml` is the template; ignore it for runtime.
+  It may also declare a non-production `target:` + `environments:`
+  block (local dev / staging); `lib/config.py` resolves it and the
+  rest of the workflow is unchanged. Omitting it means production.
 - `scenes/` — saved scene files in YAML. Read existing scenes for
   format examples; save new scenes here when the user asks you to.
 - `bin/bcscene <scene-file>` — runs a saved scene file end to end.

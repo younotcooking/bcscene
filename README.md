@@ -89,6 +89,45 @@ want — none of it affects upstream. If upstream gets new features
 later and you want them, you can `git pull` from upstream into your
 fork.
 
+## Using bcscene against local dev or staging
+
+bcscene talks to production Basecamp by default, but it can target a
+local dev or staging account instead. Add a `target` and an
+`environments` block to `personas.yaml`:
+
+```yaml
+target: local
+environments:
+  local:
+    # base_url is the API host on port 4001 — NOT the app host (3.basecamp.localhost:3001).
+    base_url: "http://3.basecampapi.localhost:4001"
+    launchpad_url: "http://launchpad.localhost:3011"
+    # 37signals launchpad ships these as the "bcq" fixture client — use as-is.
+    oauth_client_id: "bcq_dev_client_id_37signals_local"
+    oauth_client_secret: "bcq_dev_client_secret_37signals_local"
+```
+
+> **Host split:** local dev serves the app on `3.basecamp.localhost:3001` and the
+> API on `3.basecampapi.localhost:4001` (mirroring production's `3.basecamp.com`
+> vs `3.basecampapi.com`). `base_url` must point at the **API** host/port, or every
+> call 404s. The account ID is the same in both URLs.
+
+The CLI's built-in OAuth client only exists in production launchpad. For
+**37signals local dev** you don't need to register anything: launchpad ships
+a stock fixture OAuth app named **bcq** (Basecamp CLI), already wired to the
+CLI's redirect URI — just use the `oauth_client_id` / `oauth_client_secret`
+above.
+
+For **staging or a non-fixture launchpad**, register your own app instead:
+open `<launchpad_url>/integrations/new`, set the **Redirect URI** to exactly
+`http://127.0.0.1:8976/callback`, and copy the resulting Client ID / Secret
+into the block above.
+
+`bin/bcscene-setup-personas` reads this, bakes `base_url` into each profile,
+and exports the launchpad/OAuth env for the auth flow (re-applied at runtime
+for token refresh). See **Targeting a local or staging Basecamp** in
+[SETUP.md](SETUP.md) for more detail.
+
 ## Available scene actions
 
 A scene step uses one of these actions:
@@ -120,6 +159,7 @@ bcscene/
 │   └── bcscene-setup-personas     # one-time profile creation
 ├── lib/
 │   ├── cli_wrapper.py             # subprocess calls to basecamp CLI
+│   ├── config.py                  # resolves the target environment (prod/local)
 │   ├── executor.py                # runs a scene
 │   └── loader.py                  # parses YAML
 ├── scenes/
